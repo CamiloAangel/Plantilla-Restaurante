@@ -24,3 +24,36 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+p,
+p[class] {
+  font-family: "Metropolis", var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.mobile-scroll-zoom {
+  transform-origin: center;
+}
+
+@media (max-width: 767px) {
+  @supports (animation-timeline: view()) {
+    .mobile-scroll-zoom {
+      animation-name: mobile-scroll-zoom;
+      animation-duration: 1ms;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 45%;
+      will-change: scale;
+    }
+  }
+}
+
+@keyframes mobile-scroll-zoom {
+  from {
+    scale: 1;
+  }
+
+  to {
+    scale: 1.08;
+  }
+}
