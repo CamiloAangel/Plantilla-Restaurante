@@ -1,8 +1,20 @@
+'use client'; // Necesario en Next.js App Router para usar Framer Motion
+
+import { motion } from 'framer-motion';
+
 export default function NewsSection() {
   return (
     <section className="bg-[#f1f1ef] py-24 overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div className="relative group">
+        
+        {/* LADO IZQUIERDO: La Imagen (Viene desde la izquierda: x = -100) */}
+        <motion.div 
+          className="relative group"
+          initial={{ opacity: 0, x: -100 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.3 }} // once: true hace que solo se anime la primera vez que lo ves
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        >
           <div className="absolute -inset-4 bg-[#ff7851]/20 rounded-full blur-3xl group-hover:bg-[#fdd400]/30 transition-colors"></div>
           
           <img
@@ -10,9 +22,17 @@ export default function NewsSection() {
             alt="Hyper-realistic close-up of a massive gourmet burger with melting cheese, crispy bacon, and fresh greens on a brioche bun with dramatic studio lighting"
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuACy4pUu7RC5AEQKI6sK043WY_yPLJdkpF6v6SrjHnyl6kT_MjDNzZBPPCOUV-ciOfppIrrLkm5Fa-w-QeASfqSp7UgvSj2C9x3k2iIVuKkVwU_2q38Q4SpvR0MOp5zIcjXZTJ5Zl5x05Y9bfWOl3-AjpMZC0xaa_rEq1r3HMqcezCs3qC_rJMKMJJkxzOfeq8tfwwk2SZew0o0Lb17MSQI43SbFj9asqykP-SEaZ-7HFw7IZf_GJgPlEHu3mfjAoWYUvJf53SY"
           />
-        </div>
+        </motion.div>
 
-        <div className="flex flex-col gap-6 lg:pl-12">
+        {/* LADO DERECHO: Textos y Botón (Vienen desde la derecha: x = 100) */}
+        {/* Le ponemos un delay de 0.2s para que empiece justo después de la imagen, da un efecto muy pro */}
+        <motion.div 
+          className="flex flex-col gap-6 lg:pl-12"
+          initial={{ opacity: 0, x: 100 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+        >
           <h2 className="font-headline text-5xl md:text-7xl font-extrabold text-[#000000] tracking-tighter leading-none">
             PRUEBA LA <br /> <span className="text-[#ab2d00] italic">CALLE</span> <br />{" "}
           </h2>
@@ -22,8 +42,8 @@ export default function NewsSection() {
           <p className="font-headline font-bold text-2xl text-[#000000] leading-relaxed">
             Aquí no andamos con vueltas. Lo que ves en la foto es lo 
             que te comes: una burger de verdad, jugosa, humeante y lista
-             para que la agarres con las dos manos. Sin cubiertos, sin 
-             reglas, solo sabor puro. Ven a calmar ese antojo.
+            para que la agarres con las dos manos. Sin cubiertos, sin 
+            reglas, solo sabor puro. Ven a calmar ese antojo.
           </p>
 
           <div className="mt-4 flex gap-4">
@@ -34,7 +54,8 @@ export default function NewsSection() {
               Pidela Ya !{" "}
             </button>
           </div>
-        </div>
+        </motion.div>
+        
       </div>
     </section>
   );
