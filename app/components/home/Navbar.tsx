@@ -68,11 +68,18 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Sección Derecha: Botón de Llamada a la Acción */}
-        <div className="flex-shrink-0 flex items-center gap-2">
+        {/* Sección Derecha: Botones de Llamada a la Acción */}
+        <div className="flex-shrink-0 flex items-center gap-2 md:gap-3">
+          <Link
+            href="/login"
+            className="hidden md:inline-flex bg-transparent border-2 border-[#963000] text-[#963000] px-4 md:px-6 py-2 md:py-2.5 rounded-full text-xs md:text-base font-semibold hover:bg-[#963000] hover:text-white transition-all duration-300"
+          >
+            Login
+          </Link>
+
           <Link
             href="/order"
-            className="bg-[#963000] text-white px-4 md:px-8 py-2 md:py-2.5 rounded-full text-sm md:text-lg font-semibold hover:bg-[#963000]/90 transition-all duration-300 shadow-sm"
+            className="bg-[#963000] text-white px-4 md:px-8 py-2 md:py-2.5 rounded-full text-xs md:text-base font-semibold hover:bg-[#963000]/90 transition-all duration-300 shadow-sm"
           >
             Escribenos!
           </Link>
@@ -85,7 +92,7 @@ export default function Navbar() {
             aria-label="Abrir menu de navegacion"
             className="md:hidden inline-flex items-center justify-center rounded-full border border-zinc-300 px-3 py-2 text-zinc-700 hover:bg-zinc-100 transition-colors"
           >
-            Menu
+            <span className="material-symbols-outlined">menu</span>
           </button>
         </div>
       </nav>
@@ -114,6 +121,25 @@ export default function Navbar() {
                 </button>
               );
             })}
+            
+            {/* Divider */}
+            <div className="my-2 h-px bg-zinc-200"></div>
+            
+            {/* Login link en mobile */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMenuOpen(false);
+                router.push('/login');
+              }}
+              className={`w-full text-left rounded-md px-3 py-2 text-base transition-colors ${
+                pathname === '/login'
+                  ? 'bg-[#F2B705]/20 text-[#963000] font-semibold'
+                  : 'text-zinc-800 hover:bg-zinc-100'
+              }`}
+            >
+              Login
+            </button>
           </div>
         </div>
       )}

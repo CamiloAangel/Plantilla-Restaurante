@@ -388,10 +388,47 @@ export const updateOrderStatus = async (
   return updateOrder(id, { status: newStatus });
 };
 
+const resolveReferenceDate = (referenceDate?: Date | string): Date => {
+  if (referenceDate instanceof Date) {
+    return new Date(referenceDate.getTime());
+  }
+
+  if (typeof referenceDate === "string") {
+    const plainDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(referenceDate);
+    if (plainDateMatch) {
+      const [, year, month, day] = plainDateMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+
+    const parsedDate = new Date(referenceDate);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+  }
+
+  return new Date();
+};
+
+const getDayRange = (referenceDate?: Date | string) => {
+  const baseDate = resolveReferenceDate(referenceDate);
+  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0, 0);
+  const end = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 23, 59, 59, 999);
+
+  return { start, end };
+};
+
+const getMonthRange = (referenceDate?: Date | string) => {
+  const baseDate = resolveReferenceDate(referenceDate);
+  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1, 0, 0, 0, 0);
+  const end = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  return { start, end, baseDate };
+};
+
 /**
  * Obtener estadísticas del mes actual vs mes anterior
  */
-export const getMonthlyComparisonStats = async (): Promise<{
+export const getMonthlyComparisonStats = async (referenceDate?: Date | string): Promise<{
   currentMonth: {
     pedidos: number;
     totalVentas: number;
@@ -406,14 +443,15 @@ export const getMonthlyComparisonStats = async (): Promise<{
   };
 } | null> => {
   try {
+    const baseDate = resolveReferenceDate(referenceDate);
+
     // Mes actual
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const currentMonthStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1, 0, 0, 0, 0);
+    const currentMonthEnd = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0, 23, 59, 59, 999);
 
     // Mes anterior
-    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    const previousMonthStart = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1, 0, 0, 0, 0);
+    const previousMonthEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), 0, 23, 59, 59, 999);
 
     // Datos mes actual
     const { data: currentData, error: currentError } = await dbClient
@@ -467,20 +505,20 @@ export const getMonthlyComparisonStats = async (): Promise<{
 /**
  * Obtener ventas por día de la semana actual (Lunes - Domingo)
  */
-export const getWeeklySalesData = async (): Promise<Array<{
+export const getWeeklySalesData = async (referenceDate?: Date | string): Promise<Array<{
   day: string;
   ventas: number;
   pedidos: number;
 }> | null> => {
   try {
     const salesData: Array<{ day: string; ventas: number; pedidos: number }> = [];
-    const today = new Date();
+    const baseDate = resolveReferenceDate(referenceDate);
 
     // Obtener el lunes de esta semana
-    const monday = new Date(today);
-    const dayOfWeek = today.getDay();
+    const monday = new Date(baseDate);
+    const dayOfWeek = baseDate.getDay();
     const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    monday.setDate(today.getDate() - daysFromMonday);
+    monday.setDate(baseDate.getDate() - daysFromMonday);
     monday.setHours(0, 0, 0, 0);
 
     const daysNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -521,17 +559,25 @@ export const getWeeklySalesData = async (): Promise<Array<{
 /**
  * Obtener ventas por semanas del mes actual
  */
-export const getMonthlyWeeksSalesData = async (): Promise<Array<{
+export const getMonthlyWeeksSalesData = async (referenceDate?: Date | string): Promise<Array<{
   week: string;
+  range: string;
   ventas: number;
   pedidos: number;
+  startDate: string;
+  endDate: string;
 }> | null> => {
   try {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const { start: monthStart, end: monthEnd } = getMonthRange(referenceDate);
 
-    const salesData: Array<{ week: string; ventas: number; pedidos: number }> = [];
+    const salesData: Array<{
+      week: string;
+      range: string;
+      ventas: number;
+      pedidos: number;
+      startDate: string;
+      endDate: string;
+    }> = [];
 
     // Obtener todas las semanas del mes
     const weeks = getWeeksInCurrentMonth(monthStart, monthEnd);
@@ -550,15 +596,22 @@ export const getMonthlyWeeksSalesData = async (): Promise<Array<{
         return null;
       }
 
-      // Formatear las fechas para mostrar el rango
-      const startDay = start.getDate();
-      const endDay = end.getDate();
-      const monthName = start.toLocaleDateString("es-ES", { month: "short" });
+      const startLabel = start.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+      });
+      const endLabel = end.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+      });
 
       salesData.push({
-        week: `${startDay}-${endDay} ${monthName}`,
+        week: `Semana ${i + 1}`,
+        range: `${startLabel} - ${endLabel}`,
         ventas: data?.reduce((sum, order) => sum + order.total_amount, 0) || 0,
         pedidos: data?.length || 0,
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
       });
     }
 
@@ -676,7 +729,7 @@ export const getCategorySalesData = async (): Promise<Array<{
 /**
  * Obtener estadísticas de pedidos del día actual
  */
-export const getTodayOrdersStats = async (): Promise<{
+export const getTodayOrdersStats = async (referenceDate?: Date | string): Promise<{
   total: number;
   pendientes: number;
   enPreparacion: number;
@@ -686,26 +739,22 @@ export const getTodayOrdersStats = async (): Promise<{
   totalVentas: number;
 } | null> => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfDay = today.toISOString();
-
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-    const endOfDayISO = endOfDay.toISOString();
+    const { start: startOfDay, end: endOfDay } = getDayRange(referenceDate);
 
     const { data, error } = await dbClient
       .from("orders")
       .select("status, total_amount")
-      .gte("created_at", startOfDay)
-      .lte("created_at", endOfDayISO);
+      .gte("created_at", startOfDay.toISOString())
+      .lte("created_at", endOfDay.toISOString());
 
     if (error) {
       console.error("Error al obtener estadísticas de hoy:", error);
       return null;
     }
 
-    const stats = data.reduce(
+    const orders = data || [];
+
+    const stats = orders.reduce(
       (acc, order) => {
         acc.total++;
         acc.totalVentas += order.total_amount;
@@ -751,34 +800,20 @@ export const getTodayOrdersStats = async (): Promise<{
 // Funciones auxiliares
 function getWeeksInCurrentMonth(monthStart: Date, monthEnd: Date) {
   const weeks = [];
-  let current = new Date(monthStart);
-  const dayOfWeek = current.getDay();
+  const year = monthStart.getFullYear();
+  const month = monthStart.getMonth();
+  const lastDayOfMonth = monthEnd.getDate();
+  let startDay = 1;
 
-  // Si no es lunes, retroceder hasta el lunes anterior
-  if (dayOfWeek !== 1) {
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    current.setDate(current.getDate() - daysToSubtract);
-  }
+  while (startDay <= lastDayOfMonth) {
+    const endDay = Math.min(startDay + 6, lastDayOfMonth);
 
-  while (current <= monthEnd) {
-    const weekStart = new Date(current);
-    const weekEnd = new Date(current);
-    weekEnd.setDate(weekStart.getDate() + 6);
+    weeks.push({
+      start: new Date(year, month, startDay, 0, 0, 0, 0),
+      end: new Date(year, month, endDay, 23, 59, 59, 999),
+    });
 
-    // Ajustar las fechas para que estén dentro del mes
-    const actualStart = weekStart < monthStart ? monthStart : weekStart;
-    const actualEnd = weekEnd > monthEnd ? monthEnd : weekEnd;
-
-    // Solo agregar si la semana tiene días en este mes
-    if (actualStart <= monthEnd && actualEnd >= monthStart) {
-      weeks.push({
-        start: new Date(actualStart.getFullYear(), actualStart.getMonth(), actualStart.getDate(), 0, 0, 0),
-        end: new Date(actualEnd.getFullYear(), actualEnd.getMonth(), actualEnd.getDate(), 23, 59, 59)
-      });
-    }
-
-    // Avanzar a la siguiente semana
-    current.setDate(current.getDate() + 7);
+    startDay += 7;
   }
 
   return weeks;
@@ -798,3 +833,148 @@ function getCategoryFromProductName(productName: string): string {
 
   return "Otros";
 }
+
+/**
+ * Obtener estadísticas del dashboard (ventas hoy, pedidos, etc)
+ */
+export const getDashboardStats = async (referenceDate?: Date | string) => {
+  try {
+    // Obtener stats de hoy
+    const todayStats = await getTodayOrdersStats(referenceDate);
+    
+    // Obtener stats del mes
+    const { start: monthStart, end: monthEnd } = getMonthRange(referenceDate);
+
+    const { data: monthOrders } = await dbClient
+      .from("orders")
+      .select("total_amount")
+      .gte("created_at", monthStart.toISOString())
+      .lte("created_at", monthEnd.toISOString());
+
+    const monthStats = {
+      totalVentas: (monthOrders || []).reduce((sum, order) => sum + order.total_amount, 0),
+      totalPedidos: monthOrders?.length || 0,
+    };
+
+    // Top categoría del mes
+    const { data: monthOrdersWithItems } = await dbClient
+      .from("orders")
+      .select(`
+        total_amount,
+        order_items (
+          quantity,
+          products (name, category)
+        )
+      `)
+      .gte("created_at", monthStart.toISOString())
+      .lte("created_at", monthEnd.toISOString());
+
+    const categorySales: Record<string, number> = {};
+    const typedOrders = (monthOrdersWithItems || []) as Array<{
+      order_items?: Array<{
+        quantity: number | null;
+        products: {
+          category: string | null;
+        } | null;
+      }> | null;
+    }>;
+
+    typedOrders.forEach((order) => {
+      order.order_items?.forEach((item) => {
+        const category = item.products?.category || "Otros";
+        categorySales[category] = (categorySales[category] || 0) + (item.quantity || 0);
+      });
+    });
+
+    const topCategory = Object.entries(categorySales).sort(([, a], [, b]) => b - a)[0];
+
+    return {
+      today: todayStats,
+      month: monthStats,
+      topCategory: topCategory ? { name: topCategory[0], sales: topCategory[1] } : null,
+    };
+  } catch (error) {
+    console.error("Error en getDashboardStats:", error);
+    return null;
+  }
+};
+
+/**
+ * Obtener actividad reciente del staff
+ */
+export const getRecentStaffActivity = async (limit: number = 10, referenceDate?: Date | string) => {
+  try {
+    let query = dbClient
+      .from("orders")
+      .select(`
+        id,
+        created_at,
+        status,
+        total_amount,
+        order_items (
+          products (name)
+        )
+      `);
+
+    if (referenceDate) {
+      const { start, end } = getDayRange(referenceDate);
+      query = query
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString());
+    }
+
+    const { data: orders } = await query
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return orders || [];
+  } catch (error) {
+    console.error("Error en getRecentStaffActivity:", error);
+    return null;
+  }
+};
+
+/**
+ * Obtener datos de ventas semestrales
+ */
+export const getSemesterSalesData = async (referenceDate?: Date | string) => {
+  try {
+    const baseDate = resolveReferenceDate(referenceDate);
+    const currentMonth = baseDate.getMonth();
+    const startMonth = currentMonth < 6 ? 0 : 6;
+    const endMonth = currentMonth < 6 ? 5 : 11;
+
+    const monthsData = [];
+
+    for (let i = startMonth; i <= endMonth; i++) {
+      const monthStart = new Date(baseDate.getFullYear(), i, 1, 0, 0, 0, 0);
+      const monthEnd = new Date(baseDate.getFullYear(), i + 1, 0, 23, 59, 59, 999);
+
+      const { data } = await dbClient
+        .from("orders")
+        .select("total_amount")
+        .gte("created_at", monthStart.toISOString())
+        .lte("created_at", monthEnd.toISOString());
+
+      const monthName = monthStart.toLocaleDateString("es-ES", { month: "short" }).toUpperCase();
+      const totalVentas = (data || []).reduce((sum, order) => sum + order.total_amount, 0);
+
+      monthsData.push({
+        month: monthName,
+        sales: totalVentas,
+        percentage: 0, // Se calcula después
+      });
+    }
+
+    // Calcular porcentajes
+    const totalSales = monthsData.reduce((sum, m) => sum + m.sales, 0);
+    monthsData.forEach(m => {
+      m.percentage = totalSales > 0 ? Math.round((m.sales / totalSales) * 100) : 0;
+    });
+
+    return monthsData;
+  } catch (error) {
+    console.error("Error en getSemesterSalesData:", error);
+    return null;
+  }
+};

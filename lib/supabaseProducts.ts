@@ -17,6 +17,26 @@ export interface Product {
   admin_id: string;
 }
 
+export interface CreateProductInput {
+  name: string;
+  price: number;
+  description: string;
+  category: string;
+  image_url?: string | null;
+  active?: boolean;
+  stock?: number;
+}
+
+export interface UpdateProductInput {
+  name?: string;
+  price?: number;
+  description?: string;
+  category?: string;
+  image_url?: string | null;
+  active?: boolean;
+  stock?: number;
+}
+
 /**
  * Obtener todas las categorías únicas de productos activos
  */
@@ -292,7 +312,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
  * Crear un nuevo producto
  */
 export const createProduct = async (
-  product: Omit<Product, "id" | "created_at" | "updated_at" | "image_url"> & { image_url?: string | null },
+  product: CreateProductInput,
   imageFile?: File
 ): Promise<Product | null> => {
   try {
@@ -303,11 +323,6 @@ export const createProduct = async (
       console.error("Error: Usuario no autenticado", authError);
       return null;
     }
-
-    console.log("=== CREATE PRODUCT DEBUG ===");
-    console.log("auth.uid():", user.id);
-    console.log("admin_id recibido:", product.admin_id);
-    console.log("============================");
 
     let image_url: string | null = null;
 
@@ -334,7 +349,7 @@ export const createProduct = async (
       image_url = publicData.publicUrl;
     }
 
-    // Insertar producto con URL de imagen - USAR auth.uid() en lugar de product.admin_id
+    // Insertar producto con URL de imagen
     const { data, error } = await supabase
       .from("products")
       .insert([
@@ -343,7 +358,8 @@ export const createProduct = async (
           price: product.price,
           description: product.description,
           category: product.category,
-          active: product.active,
+          active: product.active ?? true,
+          stock: product.stock ?? 0,
           admin_id: user.id,
           image_url: image_url || null,
           created_at: new Date().toISOString(),
@@ -370,11 +386,14 @@ export const createProduct = async (
  */
 export const updateProduct = async (
   id: string,
-  updates: Partial<Omit<Product, "id" | "created_at" | "updated_at" | "admin_id">> & { image_url?: string | null },
+  updates: UpdateProductInput,
   newImageFile?: File
 ): Promise<Product | null> => {
   try {
-    let image_url = updates.image_url;
+    const updatePayload: UpdateProductInput & { updated_at: string } = {
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
 
     // Si hay imagen nueva, subirla
     if (newImageFile) {
@@ -396,17 +415,16 @@ export const updateProduct = async (
         .from("product-images")
         .getPublicUrl(filePath);
 
-      image_url = publicData.publicUrl;
+      updatePayload.image_url = publicData.publicUrl;
+    } else if (!Object.prototype.hasOwnProperty.call(updates, "image_url")) {
+      // Si no se envió imagen, no tocar la existente
+      delete updatePayload.image_url;
     }
 
     // Actualizar producto
     const { data, error } = await supabase
       .from("products")
-      .update({
-        ...updates,
-        image_url,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", id)
       .select()
       .single();

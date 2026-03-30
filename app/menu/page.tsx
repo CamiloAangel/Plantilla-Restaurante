@@ -1,4 +1,5 @@
 import { MenuSection, PromoSection } from '@/app/components/menu';
+import { Navbar } from '@/app/components/home';
 
 export const metadata = {
   title: 'Menú | Vástago',
@@ -7,12 +8,16 @@ export const metadata = {
 
 export default function MenuPage() {
   return (
-    <main className="min-h-screen bg-[#f7f6f4] pt-[73px]">
-      {/* Secciones del menú */}
-      <MenuSection />
+    <main className="min-h-screen bg-[#f7f6f4]">
+      <Navbar />
       
-      {/* Sección de promoción */}
-      <PromoSection />
+      <div className="pt-[73px]">
+        {/* Secciones del menú */}
+        <MenuSection />
+        
+        {/* Sección de promoción */}
+        <PromoSection />
+      </div>
     </main>
   );
 }
