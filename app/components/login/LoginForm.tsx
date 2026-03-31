@@ -51,17 +51,21 @@ export default function LoginForm() {
         .from('profiles')
         .select('role_id')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
         console.error('Error getting profile:', profileError);
-        // Si no hay perfil, redirigir a home
+        // Error real consultando perfil: redirigir a home.
         router.push('/');
         return;
       }
 
       const requestedPath = searchParams.get('next');
-      const dashboardPath = requestedPath?.startsWith('/dashboard')
+      const canRedirectToAdminPath =
+        requestedPath?.startsWith('/dashboard') || requestedPath === '/staff';
+
+      const dashboardPath = canRedirectToAdminPath
+        && requestedPath
         ? requestedPath
         : '/dashboard';
 

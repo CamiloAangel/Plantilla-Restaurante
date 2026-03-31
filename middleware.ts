@@ -5,15 +5,20 @@ import { type NextRequest, NextResponse } from "next/server";
 const DASHBOARD_PATH = "/dashboard";
 const LOGIN_PATH = "/login";
 const HOME_PATH = "/";
+const ADMIN_ALIAS_PATHS = new Set<string>(["/staff"]);
 
 const isDashboardRoute = (pathname: string) =>
   pathname === DASHBOARD_PATH || pathname.startsWith(`${DASHBOARD_PATH}/`);
 
+const isAdminAliasRoute = (pathname: string) =>
+  ADMIN_ALIAS_PATHS.has(pathname);
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLoginRoute = pathname === LOGIN_PATH;
+  const isAdminRoute = isDashboardRoute(pathname) || isAdminAliasRoute(pathname);
 
-  if (!isDashboardRoute(pathname) && !isLoginRoute) {
+  if (!isAdminRoute && !isLoginRoute) {
     return NextResponse.next();
   }
 
@@ -22,7 +27,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (isDashboardRoute(pathname)) {
+  if (isAdminRoute) {
     if (!user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = LOGIN_PATH;
@@ -55,5 +60,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/staff/:path*", "/login"],
 };

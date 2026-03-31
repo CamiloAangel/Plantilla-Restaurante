@@ -1,14 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  getDashboardStats,
-  getMonthlyComparisonStats,
-  getMonthlyWeeksSalesData,
-  getRecentStaffActivity,
-  getSemesterSalesData,
-  getWeeklySalesData,
-} from '@/lib/supabaseOrders';
 
 interface DashboardData {
   today: {
@@ -64,6 +56,16 @@ interface MonthlyComparison {
   ventasChange: number;
 }
 
+interface DashboardOverviewResponse {
+  stats?: DashboardData | null;
+  activity?: StaffActivity[];
+  weekly?: WeeklySalesPoint[];
+  monthWeeks?: MonthlyWeekSalesPoint[];
+  semester?: SemesterSalesPoint[];
+  monthComparison?: MonthlyComparison | null;
+  error?: string;
+}
+
 const formatDateForInput = (date: Date): string => {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -97,6 +99,19 @@ const formatCompactCurrency = (value: number): string => {
 
 const TODAY_INPUT_DATE = formatDateForInput(new Date());
 
+const readApiErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const payload = (await response.json()) as DashboardOverviewResponse;
+    if (typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error;
+    }
+  } catch {
+    // Si no se puede parsear el body usamos mensaje genérico.
+  }
+
+  return `La solicitud falló con estado ${response.status}.`;
+};
+
 export default function DashboardSection() {
   const [stats, setStats] = useState<DashboardData | null>(null);
   const [activity, setActivity] = useState<StaffActivity[]>([]);
@@ -112,21 +127,23 @@ export default function DashboardSection() {
     const loadDashboardData = async () => {
       setIsLoading(true);
       try {
-        const [dashStats, recentActivity, weekly, monthWeeks, semester, monthComparison] = await Promise.all([
-          getDashboardStats(selectedDate),
-          getRecentStaffActivity(10, selectedDate),
-          getWeeklySalesData(selectedDate),
-          getMonthlyWeeksSalesData(selectedDate),
-          getSemesterSalesData(selectedDate),
-          getMonthlyComparisonStats(selectedDate),
-        ]);
+        const response = await fetch(`/api/admin/dashboard?date=${encodeURIComponent(selectedDate)}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
 
-        setStats((dashStats as DashboardData | null) || null);
-        setActivity((recentActivity as StaffActivity[]) || []);
-        setWeeklyData((weekly as WeeklySalesPoint[]) || []);
-        setMonthWeeksData((monthWeeks as MonthlyWeekSalesPoint[]) || []);
-        setSemesterData((semester as SemesterSalesPoint[]) || []);
-        setMonthlyComparison(monthComparison?.comparison || null);
+        if (!response.ok) {
+          throw new Error(await readApiErrorMessage(response));
+        }
+
+        const payload = (await response.json()) as DashboardOverviewResponse;
+
+        setStats(payload.stats || null);
+        setActivity(payload.activity || []);
+        setWeeklyData(payload.weekly || []);
+        setMonthWeeksData(payload.monthWeeks || []);
+        setSemesterData(payload.semester || []);
+        setMonthlyComparison(payload.monthComparison || null);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -218,15 +235,15 @@ export default function DashboardSection() {
 
   if (isLoading) {
     return (
-      <div className="ml-64 pt-24 p-8 min-h-screen flex items-center justify-center">
+      <div className="w-full min-h-screen flex items-center justify-center px-4 pt-24 md:pt-8 md:ml-64 md:w-[calc(100%-16rem)] md:px-8">
         <p className="text-black font-headline text-lg">Cargando dashboard...</p>
       </div>
     );
   }
 
   return (
-    <main className="ml-64 min-h-screen bg-stone-50">
-      <div className="pt-8 p-8">
+    <main className="w-full min-h-screen bg-stone-50 md:ml-64 md:w-[calc(100%-16rem)]">
+      <div className="pt-20 md:pt-8 px-4 md:px-8 pb-8">
         <section className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <span className="bg-stone-200 text-black text-xs font-black tracking-widest px-3 py-1 rounded-full uppercase mb-2 inline-block">

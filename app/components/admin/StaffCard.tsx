@@ -5,23 +5,22 @@ import { Staff } from './StaffSection';
 
 interface StaffCardProps {
   staff: Staff;
-  roleColors: { badge: string; ring: string; icon: string };
   onEdit: (staff: Staff) => void;
   onDelete: (id: string) => void;
 }
 
-export default function StaffCard({ staff, roleColors, onEdit, onDelete }: StaffCardProps) {
+export default function StaffCard({ staff, onEdit, onDelete }: StaffCardProps) {
   return (
     <div className="bg-surface-container-lowest rounded-xl p-6 transition-all hover:scale-[1.02] relative group">
       {/* Role Badge */}
-      <div className={`absolute top-4 right-4 ${roleColors.badge} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest`}>
-        {staff.role}
+      <div className="absolute top-4 right-4 bg-black text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+        Mesero
       </div>
 
       {/* Staff Info */}
       <div className="flex flex-col items-center text-center">
         {/* Profile Image */}
-        <div className={`w-32 h-32 rounded-full overflow-hidden mb-6 ring-4 ${roleColors.ring}/20 group-hover:${roleColors.ring} transition-all flex items-center justify-center bg-surface-container relative`}>
+        <div className="w-32 h-32 rounded-full overflow-hidden mb-6 ring-4 ring-black/10 group-hover:ring-black/30 transition-all flex items-center justify-center bg-surface-container relative">
           {staff.image ? (
             <Image
               src={staff.image}
@@ -35,9 +34,9 @@ export default function StaffCard({ staff, roleColors, onEdit, onDelete }: Staff
           )}
         </div>
 
-        {/* Name & Position */}
+        {/* Name */}
         <h3 className="text-2xl font-black font-headline tracking-tight text-on-surface mb-1">{staff.name}</h3>
-        <p className="text-primary font-body italic mb-6">{staff.position}</p>
+        <p className="text-primary font-body italic mb-6">Mesero</p>
 
         {/* Action Buttons */}
         <div className="flex gap-2 w-full mt-4">
@@ -56,8 +55,8 @@ export default function StaffCard({ staff, roleColors, onEdit, onDelete }: Staff
         </div>
 
         {/* Contact */}
-        {staff.email && (
-          <p className="text-xs text-neutral-500 mt-2 truncate w-full">{staff.email}</p>
+        {staff.phone && (
+          <p className="text-xs text-neutral-500 mt-2 truncate w-full">{staff.phone}</p>
         )}
       </div>
     </div>

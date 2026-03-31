@@ -1,24 +1,21 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Staff } from './StaffSection';
+import { Staff, StaffFormInput } from './StaffSection';
 
 interface StaffModalProps {
   staff: Staff | null;
   onClose: () => void;
-  onSave: (staff: Omit<Staff, 'id'>) => void;
-  roleColors: Record<string, { badge: string; ring: string; icon: string }>;
+  onSave: (staff: StaffFormInput) => void;
 }
 
-const roles = ['Dueño', 'Cocinero', 'Mesero'];
-
-export default function StaffModal({ staff, onClose, onSave, roleColors }: StaffModalProps) {
+export default function StaffModal({ staff, onClose, onSave }: StaffModalProps) {
   const [formData, setFormData] = useState({
     name: '',
-    role: 'Mesero',
-    position: '',
     email: '',
+    password: '',
     phone: '',
     image: '',
   });
@@ -30,13 +27,21 @@ export default function StaffModal({ staff, onClose, onSave, roleColors }: Staff
     if (staff) {
       setFormData({
         name: staff.name,
-        role: staff.role,
-        position: staff.position,
         email: staff.email || '',
+        password: '',
         phone: staff.phone || '',
         image: staff.image || '',
       });
       setImagePreview(staff.image || null);
+    } else {
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        phone: '',
+        image: '',
+      });
+      setImagePreview(null);
     }
   }, [staff]);
 
@@ -70,17 +75,30 @@ export default function StaffModal({ staff, onClose, onSave, roleColors }: Staff
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.position) {
-      alert('Por favor completa el nombre y posición');
+
+    if (!formData.name.trim()) {
+      alert('Por favor completa el nombre');
       return;
     }
 
+    if (!staff) {
+      if (!formData.email.trim()) {
+        alert('Por favor completa el correo del mesero');
+        return;
+      }
+
+      if (formData.password.length < 6) {
+        alert('La contraseña debe tener al menos 6 caracteres');
+        return;
+      }
+    }
+
     onSave({
-      name: formData.name,
-      role: formData.role,
-      position: formData.position,
-      email: formData.email,
-      phone: formData.phone,
+      name: formData.name.trim(),
+      email: formData.email.trim() || null,
+      password: formData.password,
+      role: 'Mesero',
+      phone: formData.phone.trim() || null,
       image: formData.image || null,
     });
   };
@@ -96,7 +114,7 @@ export default function StaffModal({ staff, onClose, onSave, roleColors }: Staff
         {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-primary to-primary-container p-6 flex justify-between items-center z-10">
           <h2 className="text-2xl font-black font-headline text-white">
-            {staff ? 'Editar Personal' : 'Añadir Personal'}
+            {staff ? 'Editar Mesero' : 'Añadir Mesero'}
           </h2>
           <button
             onClick={onClose}
@@ -112,7 +130,13 @@ export default function StaffModal({ staff, onClose, onSave, roleColors }: Staff
           <div className="flex flex-col items-center gap-4">
             <div className="w-32 h-32 rounded-full overflow-hidden bg-surface-container flex items-center justify-center ring-4 ring-primary/20">
               {imagePreview ? (
-                <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                <Image
+                  src={imagePreview}
+                  alt="preview"
+                  width={128}
+                  height={128}
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <span className="material-symbols-outlined text-4xl text-neutral-400">account_circle</span>
               )}
@@ -147,52 +171,39 @@ export default function StaffModal({ staff, onClose, onSave, roleColors }: Staff
             />
           </div>
 
-          {/* Role */}
-          <div>
-            <label className="block text-sm font-bold text-on-surface mb-2">Rol*</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border-2 border-surface-variant rounded-lg focus:border-primary outline-none transition-colors"
-            >
-              {roles.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!staff && (
+            <>
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-bold text-on-surface mb-2">Correo*</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="mesero@vastago.com"
+                  className="w-full px-4 py-2 border-2 border-surface-variant rounded-lg focus:border-primary outline-none transition-colors"
+                />
+              </div>
 
-          {/* Position */}
-          <div>
-            <label className="block text-sm font-bold text-on-surface mb-2">Posición*</label>
-            <input
-              type="text"
-              name="position"
-              value={formData.position}
-              onChange={handleInputChange}
-              placeholder="Ej: Chef Principal"
-              className="w-full px-4 py-2 border-2 border-surface-variant rounded-lg focus:border-primary outline-none transition-colors"
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-bold text-on-surface mb-2">Email</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              placeholder="correo@ejemplo.com"
-              className="w-full px-4 py-2 border-2 border-surface-variant rounded-lg focus:border-primary outline-none transition-colors"
-            />
-          </div>
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-bold text-on-surface mb-2">Contraseña*</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-4 py-2 border-2 border-surface-variant rounded-lg focus:border-primary outline-none transition-colors"
+                />
+              </div>
+            </>
+          )}
 
           {/* Phone */}
           <div>
-            <label className="block text-sm font-bold text-on-surface mb-2">Teléfono</label>
+            <label className="block text-sm font-bold text-on-surface mb-2">Teléfono (opcional)</label>
             <input
               type="tel"
               name="phone"
@@ -215,7 +226,7 @@ export default function StaffModal({ staff, onClose, onSave, roleColors }: Staff
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-2 bg-primary text-on-primary rounded-lg font-bold uppercase hover:brightness-110 transition-colors disabled:opacity-50"
+              className="flex-1 py-2 bg-yellow-400 text-black rounded-lg font-bold uppercase hover:bg-yellow-500 transition-colors disabled:opacity-50"
             >
               {staff ? 'Actualizar' : 'Añadir'}
             </button>

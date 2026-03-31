@@ -1,5 +1,7 @@
 import { type Product } from '@/lib/supabaseProducts';
 
+const FALLBACK_PRODUCT_IMAGE = '/product-placeholder.svg';
+
 interface ProductCardProps {
   product: Product;
   onEdit: (product: Product) => void;
@@ -25,7 +27,15 @@ export function ProductCard({
         <img
           alt={product.name}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          src={product.image_url || 'https://via.placeholder.com/400x300?text=Sin+Imagen'}
+          src={product.image_url || FALLBACK_PRODUCT_IMAGE}
+          onError={(event) => {
+            const img = event.currentTarget;
+            if (img.src.includes(FALLBACK_PRODUCT_IMAGE)) {
+              return;
+            }
+
+            img.src = FALLBACK_PRODUCT_IMAGE;
+          }}
         />
 
         <button

@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function DashboardPage() {
   return (
-    <div className="bg-surface min-h-screen">
+    <div className="bg-surface min-h-screen overflow-x-hidden">
       <SidebarAdmin />
       <DashboardSection />
     </div>

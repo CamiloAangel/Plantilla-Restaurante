@@ -1,15 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  createProduct,
-  deleteProduct,
-  getProducts,
-  toggleProductStatus,
-  updateProduct,
-  type Product,
-  type UpdateProductInput,
-} from '@/lib/supabaseProducts';
+import { supabase } from '@/lib/supabaseClient';
+import { type Product } from '@/lib/supabaseProducts';
 import { AlertMessage } from './AlertMessage';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { ProductCard } from './ProductCard';
@@ -34,6 +27,28 @@ const DEFAULT_CATEGORIES = [
   'Jugos',
   'Otros',
 ];
+
+const readApiErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const payload = (await response.json()) as { error?: string };
+    if (typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error;
+    }
+  } catch {
+    // Si el body no es JSON, usamos un mensaje genérico.
+  }
+
+  return `La solicitud falló con estado ${response.status}.`;
+};
+
+const getImagePathFromPublicUrl = (publicUrl: string): string | null => {
+  const pathMatch = publicUrl.match(/storage\/v1\/object\/public\/product-images\/(.+)$/);
+  if (!pathMatch) {
+    return null;
+  }
+
+  return decodeURIComponent(pathMatch[1]);
+};
 
 export function InventorySection() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,8 +75,17 @@ export function InventorySection() {
   const loadProducts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const allProducts = await getProducts();
-      setProducts(allProducts || []);
+      const response = await fetch('/api/admin/products', {
+        method: 'GET',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response));
+      }
+
+      const payload = (await response.json()) as { data?: Product[] };
+      setProducts(payload.data || []);
     } catch (error) {
       console.error('Error loading products:', error);
       showAlert('error', 'No se pudieron cargar los productos.');
@@ -130,18 +154,60 @@ export function InventorySection() {
     setIsSubmitting(true);
 
     try {
+      let uploadedImagePath: string | null = null;
+      let uploadedImageUrl: string | null = null;
+
+      if (data.imageFile) {
+        const fileExt = data.imageFile.name.split('.').pop() || 'jpg';
+        const safeBaseName = trimmedName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 32);
+        const filePath = `products/${Date.now()}-${safeBaseName || 'producto'}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, data.imageFile);
+
+        if (uploadError) {
+          throw new Error('No se pudo subir la imagen del producto.');
+        }
+
+        uploadedImagePath = filePath;
+        const { data: publicData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+        uploadedImageUrl = publicData.publicUrl;
+      }
+
       if (!productToEdit) {
-        const createdProduct = await createProduct(
-          {
+        const response = await fetch('/api/admin/products', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             name: trimmedName,
             price: numericPrice,
             description: trimmedDescription,
             category: trimmedCategory,
             active: data.active,
             stock: 0,
-          },
-          data.imageFile || undefined
-        );
+            image_url: uploadedImageUrl,
+          }),
+        });
+
+        if (!response.ok) {
+          if (uploadedImagePath) {
+            await supabase.storage.from('product-images').remove([uploadedImagePath]);
+          }
+
+          throw new Error(await readApiErrorMessage(response));
+        }
+
+        const payload = (await response.json()) as { data?: Product };
+        const createdProduct = payload.data;
 
         if (!createdProduct) {
           showAlert('error', 'No se pudo crear el producto.');
@@ -150,7 +216,7 @@ export function InventorySection() {
 
         showAlert('success', 'Producto agregado correctamente.');
       } else {
-        const updates: UpdateProductInput = {
+        const updates: Record<string, unknown> = {
           name: trimmedName,
           price: numericPrice,
           description: trimmedDescription,
@@ -158,15 +224,39 @@ export function InventorySection() {
           active: data.active,
         };
 
-        const updatedProduct = await updateProduct(
-          productToEdit.id,
-          updates,
-          data.imageFile || undefined
-        );
+        if (uploadedImageUrl) {
+          updates.image_url = uploadedImageUrl;
+        }
+
+        const response = await fetch(`/api/admin/products/${productToEdit.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) {
+          if (uploadedImagePath) {
+            await supabase.storage.from('product-images').remove([uploadedImagePath]);
+          }
+
+          throw new Error(await readApiErrorMessage(response));
+        }
+
+        const payload = (await response.json()) as { data?: Product };
+        const updatedProduct = payload.data;
 
         if (!updatedProduct) {
           showAlert('error', 'No se pudo actualizar el producto.');
           return;
+        }
+
+        if (uploadedImageUrl && productToEdit.image_url && productToEdit.image_url !== updatedProduct.image_url) {
+          const oldImagePath = getImagePathFromPublicUrl(productToEdit.image_url);
+          if (oldImagePath) {
+            await supabase.storage.from('product-images').remove([oldImagePath]);
+          }
         }
 
         showAlert('success', 'Producto actualizado correctamente.');
@@ -197,7 +287,16 @@ export function InventorySection() {
 
     setIsDeleting(true);
     try {
-      const wasDeleted = await deleteProduct(productToDelete.id);
+      const response = await fetch(`/api/admin/products/${productToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response));
+      }
+
+      const payload = (await response.json()) as { success?: boolean };
+      const wasDeleted = payload.success === true;
 
       if (!wasDeleted) {
         showAlert('error', 'No se pudo eliminar el producto.');
@@ -218,7 +317,20 @@ export function InventorySection() {
   const handleToggleStatus = async (product: Product) => {
     setStatusUpdatingId(product.id);
     try {
-      const updatedProduct = await toggleProductStatus(product.id, product.active);
+      const response = await fetch(`/api/admin/products/${product.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ active: !product.active }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response));
+      }
+
+      const payload = (await response.json()) as { data?: Product };
+      const updatedProduct = payload.data;
 
       if (!updatedProduct) {
         showAlert('error', `No se pudo cambiar el estado de ${product.name}.`);
@@ -243,8 +355,8 @@ export function InventorySection() {
 
   if (isLoading) {
     return (
-      <main className="ml-64 w-[calc(100%-16rem)] min-h-screen bg-stone-50 pt-8">
-        <div className="pl-8 pr-8 pb-12 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
+      <main className="w-full min-h-screen bg-stone-50 pt-20 md:pt-8 md:ml-64 md:w-[calc(100%-16rem)]">
+        <div className="px-4 md:px-8 pb-12 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
           <p className="text-black font-headline text-lg font-bold">Cargando inventario...</p>
         </div>
       </main>
@@ -252,8 +364,8 @@ export function InventorySection() {
   }
 
   return (
-    <main className="ml-64 w-[calc(100%-16rem)] min-h-screen bg-stone-50">
-      <div className="pt-8 pl-8 pr-8 pb-12">
+    <main className="w-full min-h-screen bg-stone-50 md:ml-64 md:w-[calc(100%-16rem)]">
+      <div className="pt-20 md:pt-8 px-4 md:px-8 pb-12">
         <AlertMessage
           message={alert.message}
           type={alert.type}
@@ -385,7 +497,7 @@ export function InventorySection() {
         </div>
       </div>
 
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3">
+      <div className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-30 flex flex-col gap-3">
         <div className="bg-stone-900 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 border-l-[3px] border-yellow-400">
           <span
             className="material-symbols-outlined text-yellow-400 text-2xl"

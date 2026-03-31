@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function InventoryPage() {
   return (
-    <div className="flex bg-surface">
+    <div className="bg-surface min-h-screen overflow-x-hidden">
       <SidebarAdmin />
       <InventorySection />
     </div>

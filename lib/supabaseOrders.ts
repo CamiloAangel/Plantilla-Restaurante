@@ -834,6 +834,23 @@ function getCategoryFromProductName(productName: string): string {
   return "Otros";
 }
 
+function getCategoryFromRelation(
+  productRelation:
+    | {
+        category: string | null;
+      }
+    | Array<{
+        category: string | null;
+      }>
+    | null
+): string {
+  if (Array.isArray(productRelation)) {
+    return productRelation[0]?.category || "Otros";
+  }
+
+  return productRelation?.category || "Otros";
+}
+
 /**
  * Obtener estadísticas del dashboard (ventas hoy, pedidos, etc)
  */
@@ -870,18 +887,23 @@ export const getDashboardStats = async (referenceDate?: Date | string) => {
       .lte("created_at", monthEnd.toISOString());
 
     const categorySales: Record<string, number> = {};
-    const typedOrders = (monthOrdersWithItems || []) as Array<{
+    const typedOrders = (monthOrdersWithItems || []) as unknown as Array<{
       order_items?: Array<{
         quantity: number | null;
-        products: {
-          category: string | null;
-        } | null;
+        products:
+          | {
+              category: string | null;
+            }
+          | Array<{
+              category: string | null;
+            }>
+          | null;
       }> | null;
     }>;
 
     typedOrders.forEach((order) => {
       order.order_items?.forEach((item) => {
-        const category = item.products?.category || "Otros";
+        const category = getCategoryFromRelation(item.products);
         categorySales[category] = (categorySales[category] || 0) + (item.quantity || 0);
       });
     });

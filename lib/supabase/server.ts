@@ -12,22 +12,17 @@ if (!supabaseAnonKey) {
   throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno");
 }
 
+// Cliente para Server Components (read-only)
 export const createServerSupabaseClient = async () => {
   const cookieStore = await cookies();
-  const writableCookieStore = cookieStore as unknown as {
-    set?: (...args: unknown[]) => void;
-  };
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          // En algunos contextos de Server Components las cookies son read-only.
-          writableCookieStore.set?.(name, value, options);
-        });
+      setAll() {
+        // No hacer nada en Server Components
       },
     },
   });
