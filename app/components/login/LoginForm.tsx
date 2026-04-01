@@ -2,8 +2,23 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { hasDashboardAccess } from '@/lib/auth/roles';
+import { hasDashboardAccess, isWaiterRoleName } from '@/lib/auth/roles';
 import { supabase } from '@/lib/supabaseClient';
+
+interface ApiLikeError {
+  code?: string;
+  message?: string;
+  details?: string | null;
+}
+
+const isMissingStaffTableError = (error: ApiLikeError | null): boolean => {
+  if (!error) {
+    return false;
+  }
+
+  const searchableMessage = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return error.code === 'PGRST205' || searchableMessage.includes('could not find the table');
+};
 
 export default function LoginForm() {
   const router = useRouter();
@@ -55,26 +70,50 @@ export default function LoginForm() {
 
       if (profileError) {
         console.error('Error getting profile:', profileError);
-        // Error real consultando perfil: redirigir a home.
-        router.push('/');
-        return;
       }
 
-      const requestedPath = searchParams.get('next');
+      const requestedPath = searchParams.get('next') || '';
       const canRedirectToAdminPath =
-        requestedPath?.startsWith('/dashboard') || requestedPath === '/staff';
+        requestedPath.startsWith('/dashboard') || requestedPath === '/staff';
+      const canRedirectToWaiterPath = requestedPath.startsWith('/waiters');
 
       const dashboardPath = canRedirectToAdminPath
         && requestedPath
         ? requestedPath
         : '/dashboard';
 
-      // Verificar si es admin
+      const waiterPath = canRedirectToWaiterPath
+        ? requestedPath
+        : '/waiters';
+
       if (hasDashboardAccess(profile?.role_id)) {
-        // Es admin, redirigir al dashboard
         router.push(dashboardPath);
+        return;
+      }
+
+      const metadata = (data.user.user_metadata || {}) as Record<string, unknown>;
+      const metadataRole = typeof metadata.role === 'string' ? metadata.role : null;
+
+      let hasWaiterRole = isWaiterRoleName(metadataRole);
+
+      if (!hasWaiterRole && data.user.email) {
+        const { data: waiterRecord, error: waiterLookupError } = await supabase
+          .from('staff')
+          .select('id')
+          .eq('email', data.user.email)
+          .eq('role', 'Mesero')
+          .maybeSingle();
+
+        if (waiterLookupError && !isMissingStaffTableError(waiterLookupError as ApiLikeError)) {
+          console.error('Error getting waiter profile from staff:', waiterLookupError);
+        }
+
+        hasWaiterRole = Boolean(waiterRecord) || hasWaiterRole;
+      }
+
+      if (hasWaiterRole) {
+        router.push(waiterPath);
       } else {
-        // Es usuario normal, redirigir a home
         router.push('/');
       }
     } catch (err) {

@@ -37,6 +37,21 @@ export interface UpdateProductInput {
   stock?: number;
 }
 
+interface OrderItemWithProduct {
+  quantity: number | null;
+  products: Product | Product[] | null;
+}
+
+const getProductFromRelation = (
+  productRelation: OrderItemWithProduct["products"]
+): Product | null => {
+  if (Array.isArray(productRelation)) {
+    return productRelation[0] ?? null;
+  }
+
+  return productRelation;
+};
+
 /**
  * Obtener todas las categorías únicas de productos activos
  */
@@ -141,10 +156,11 @@ export const getMonthTopProductByCategory = async (category?: string): Promise<P
     }
 
     // Procesar en memoria (mucho menos datos ahora)
-    const productSales: Record<string, { count: number; product: any }> = {};
+    const productSales: Record<string, { count: number; product: Product }> = {};
+    const typedOrderItems = (orderItems || []) as OrderItemWithProduct[];
 
-    orderItems.forEach((item: any) => {
-      const product = item.products;
+    typedOrderItems.forEach((item) => {
+      const product = getProductFromRelation(item.products);
 
       if (product) {
         if (!productSales[product.id]) {
@@ -155,7 +171,7 @@ export const getMonthTopProductByCategory = async (category?: string): Promise<P
     });
 
     // Encontrar el producto con más cantidad vendida
-    let topProduct: any = null;
+    let topProduct: Product | null = null;
     let maxCount = 0;
 
     Object.values(productSales).forEach(({ count, product }) => {
@@ -165,7 +181,7 @@ export const getMonthTopProductByCategory = async (category?: string): Promise<P
       }
     });
 
-    return topProduct as Product | null;
+    return topProduct;
   } catch (error) {
     console.error("Error en getMonthTopProductByCategory:", error);
     return null;
@@ -217,10 +233,11 @@ export const getMonthTopProductByAllCategories = async (): Promise<Product[] | n
     }
 
     // Agrupar por categoría y dentro por product_id (menos iteraciones)
-    const categorySales: Record<string, Record<string, { count: number; product: any }>> = {};
+    const categorySales: Record<string, Record<string, { count: number; product: Product }>> = {};
+    const typedOrderItems = (orderItems || []) as OrderItemWithProduct[];
 
-    orderItems.forEach((item: any) => {
-      const product = item.products;
+    typedOrderItems.forEach((item) => {
+      const product = getProductFromRelation(item.products);
 
       if (product) {
         const category = product.category;
@@ -240,8 +257,8 @@ export const getMonthTopProductByAllCategories = async (): Promise<Product[] | n
     // Obtener el top product de cada categoría
     const topProducts: Product[] = [];
 
-    Object.entries(categorySales).forEach(([category, products]) => {
-      let topProduct: any = null;
+    Object.entries(categorySales).forEach(([, products]) => {
+      let topProduct: Product | null = null;
       let maxCount = 0;
 
       Object.values(products).forEach(({ count, product }) => {
@@ -252,7 +269,7 @@ export const getMonthTopProductByAllCategories = async (): Promise<Product[] | n
       });
 
       if (topProduct) {
-        topProducts.push(topProduct as Product);
+        topProducts.push(topProduct);
       }
     });
 
@@ -505,7 +522,8 @@ export const incrementStock = async (id: string): Promise<number | null> => {
       return null;
     }
 
-    return (data as any).stock;
+    const stockRow = data as Pick<Product, "stock"> | null;
+    return stockRow?.stock ?? null;
   } catch (error) {
     console.error("Error en incrementStock:", error);
     return null;
